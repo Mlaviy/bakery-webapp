@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>La Poste — Каталог</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #ffffff;
+            color: #111111;
+            padding: 16px;
+            padding-bottom: 90px;
+            -webkit-tap-highlight-color: transparent;
+            max-width: 480px;
+            margin: 0 auto;
+        }
+
+        .categories {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+            scrollbar-width: none;
+            position: sticky;
+            top: 0;
+            background: #ffffff;
+            z-index: 10;
+        }
+        .categories::-webkit-scrollbar { display: none; }
+        
+        .cat-btn {
+            padding: 8px 16px;
+            border: 1px solid #e5e5e5;
+            border-radius: 20px;
+            background: #ffffff;
+            font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: #444444;
+        }
+        .cat-btn.active {
+            background: #1a1a1a;
+            color: #ffffff;
+            border-color: #1a1a1a;
+        }
+
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+        
+        .product-card {
+            background: #ffffff;
+            border: 1px solid #f0f0f0;
+            border-radius: 12px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+        }
+        
+        .img-wrapper {
+            width: 100%;
+            aspect-ratio: 4 / 3;
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: #f5f5f7;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .product-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            padding: 4px;
+        }
+
+        .product-title {
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 4px;
+            line-height: 1.25;
+            color: #111;
+        }
+        
+        .product-desc {
+            font-size: 11px;
+            color: #777777;
+            margin-bottom: 10px;
+            line-height: 1.3;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .product-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: auto;
+            padding-top: 4px;
+        }
+        
+        .price-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .product-price {
+            font-weight: 700;
+            font-size: 14px;
+        }
+        
+        .product-weight {
+            font-size: 10px;
+            color: #999999;
+        }
+
+        .add-btn {
+            background: #0000d6;
+            color: #ffffff;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .counter {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            background: #f5f5f7;
+            border-radius: 8px;
+            padding: 2px;
+        }
+        
+        .counter button {
+            border: none;
+            background: none;
+            font-size: 16px;
+            font-weight: bold;
+            width: 26px;
+            height: 26px;
+            cursor: pointer;
+            color: #1a1a1a;
+        }
+        
+        .counter span {
+            font-size: 12px;
+            font-weight: 600;
+            min-width: 14px;
+            text-align: center;
+        }
+
+        .order-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #ffffff;
+            padding: 12px 16px;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.06);
+            border-top: 1px solid #f0f0f0;
+            z-index: 100;
+        }
+        
+        .main-btn {
+            width: 100%;
+            padding: 14px;
+            background: #1a1a1a;
+            color: #ffffff;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .main-btn:disabled {
+            background: #e0e0e0;
+            color: #a0a0a0;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="categories" id="categoryContainer"></div>
+    <div class="products-grid" id="productsContainer"></div>
+
+    <div class="order-bar">
+        <button class="main-btn" id="orderBtn" onclick="sendOrder()" disabled>Выберите товары (0 ₽)</button>
+    </div>
+
+    <script>
+        let tg = window.Telegram.WebApp;
+        tg.expand();
+
+        const products = [
+            // ХЛЕБ
+            { id: 'b1', cat: 'Хлеб', name: 'Багет «Твист»', desc: 'Хлеб Твист с очень мягкой коркой и нежным мякишем.', weight: '340г', price: 350, img: 'https://laposte.ru/wp-content/uploads/2026/02/4l1a3172-kopiya-scaled.jpg' },
+            { id: 'b2', cat: 'Хлеб', name: 'Багет «Флют кедровый»', desc: 'Пшеничный хлеб из багетного теста с кедровыми орешками.', weight: '200г', price: 550, img: 'https://laposte.ru/wp-content/uploads/2026/02/a24460ed-928c-44dc-a5cc-73bc8821786c-9-scaled.jpg' },
+            { id: 'b3', cat: 'Хлеб', name: 'Пух пшеничный сдобный', desc: 'Пшеничный хлеб сдоба с воздушным мякишем.', weight: '300г', price: 400, img: 'https://laposte.ru/wp-content/uploads/2026/02/b38643f9-024c-4342-9907-36a8ec9c699b-9.png' },
+            { id: 'b4', cat: 'Хлеб', name: 'Гречка', desc: 'Ароматный хлеб на гречневой закваске.', weight: '400г', price: 450, img: 'https://laposte.ru/wp-content/uploads/2026/02/0d51c100-4464-4826-864e-715b9d5b483c-12.jpg' },
+            { id: 'b5', cat: 'Хлеб', name: 'Хлеб «Кампань»', desc: 'Традиционный французский деревенский хлеб.', weight: '500г', price: 480, img: 'https://laposte.ru/wp-content/uploads/2026/02/ba08f105-ab2d-419a-9934-b8c4dc4063cd-9.png' },
+            { id: 'b6', cat: 'Хлеб', name: 'Безглютен чернослив', desc: 'Особый хлеб без глютена с добавлением чернослива.', weight: '350г', price: 520, img: 'https://laposte.ru/wp-content/uploads/2026/02/4l1a3179-kopiya-2-scaled.jpg' },
+
+            // ГАСТРОНОМИЯ
+            { id: 'g1', cat: 'Гастрономия', name: 'Каша', desc: 'Сытная авторская каша для отличного начала дня.', weight: '250г', price: 380, img: 'https://laposte.ru/wp-content/uploads/2026/02/a7befef1-623c-4f59-b793-02fb80f24f6c-12-scaled.jpg' },
+            { id: 'g2', cat: 'Гастрономия', name: 'Салат с индейкой, киноа и соусом цезарь', desc: 'Свежий салат с нежной индейкой и фирменным соусом.', weight: '220г', price: 650, img: 'https://laposte.ru/wp-content/uploads/2026/05/8aeb98d0-2621-4d48-b22f-342b77a0d003-scaled.jpg' },
+            { id: 'g3', cat: 'Гастрономия', name: 'Салат с креветками, булгуром и соусом манго', desc: 'Легкий и питательный салат со тропической ноткой.', weight: '210г', price: 720, img: 'https://laposte.ru/wp-content/uploads/2026/05/f62a13c8-cc5a-48c9-bc99-474661ec57fc-scaled.jpg' },
+            { id: 'g4', cat: 'Гастрономия', name: 'Пирог с уткой', desc: 'Сочный сытный пирог с начинкой из утиного мяса.', weight: '180г', price: 580, img: 'https://laposte.ru/wp-content/uploads/2026/02/089c6159-b3dd-49e6-8ddf-0c964802b4b1-scaled.jpg' },
+            { id: 'g5', cat: 'Гастрономия', name: 'Пирог курник с блинами', desc: 'Классический курник с блинными слоями.', weight: '200г', price: 540, img: 'https://laposte.ru/wp-content/uploads/2026/07/b38c9c1d-58eb-4a4a-a931-14075a5f07ec-scaled.jpg' },
+            { id: 'g6', cat: 'Гастрономия', name: 'Панье с пастрами', desc: 'Хрустящая выпечка с ароматной пастрами.', weight: '160г', price: 620, img: 'https://laposte.ru/wp-content/uploads/2026/07/dsc_3692-scaled.jpg' },
+            { id: 'g7', cat: 'Гастрономия', name: 'Киш «Панье с индейкой и грюйером»', desc: 'Французский киш с филе индейки и сыром Грюйер.', weight: '170г', price: 590, img: 'https://laposte.ru/wp-content/uploads/woocommerce-placeholder-600x600.png' },
+            { id: 'g8', cat: 'Гастрономия', name: 'Киш «Тарт Рататуй»', desc: 'Овощной киш по мотивам знаменитого рататуя.', weight: '170г', price: 490, img: 'https://laposte.ru/wp-content/uploads/2026/02/b9673c4e-405f-4ff8-930f-0c53fd50bfdb.jpg' },
+            { id: 'g9', cat: 'Гастрономия', name: 'Киш «Лорен» с лососем', desc: 'Классический открытый пирог с нежным лососем.', weight: '170г', price: 680, img: 'https://laposte.ru/wp-content/uploads/2026/02/a39411a5-30d1-42b1-9ddb-196b9eed64bb-9-scaled.jpg' },
+            { id: 'g10', cat: 'Гастрономия', name: 'Киш с копченой индейкой и сыром чеддер', desc: 'Насыщенный вкус копченой индейки и чеддера.', weight: '170г', price: 560, img: 'https://laposte.ru/wp-content/uploads/2026/02/4c50532b-985f-44ed-99bb-1509f49620fc-12-scaled.jpg' },
+            { id: 'g11', cat: 'Гастрономия', name: 'Сэндвич «Крок-мен» с пастрами', desc: 'Горячий сэндвич с пастрами и подплавленным сыром.', weight: '210г', price: 640, img: 'https://laposte.ru/wp-content/uploads/2026/02/95771865-4bfc-4e92-b44e-ddc0672f9a51-9.jpg' },
+            { id: 'g12', cat: 'Гастрономия', name: 'Сырники с собой', desc: 'Нежные домашние сырники в удобном формате.', weight: '180г', price: 420, img: 'https://laposte.ru/wp-content/uploads/2026/02/eb520553-6806-484b-8fb6-81cc6fdfef7f-12-scaled.jpg' },
+            { id: 'g13', cat: 'Гастрономия', name: 'Масло соленое', desc: 'Натуральное взбитое сливочное масло с солью.', weight: '100г', price: 290, img: 'https://laposte.ru/wp-content/uploads/2026/02/fd24a197-511b-4d8c-83da-64cbc54ae36d-12-scaled.jpg' },
+            { id: 'g14', cat: 'Гастрономия', name: 'Масло трюфельное', desc: 'Ароматное сливочное масло с добавлением трюфеля.', weight: '100г', price: 450, img: 'https://laposte.ru/wp-content/uploads/2026/02/2e5a1aea-b495-43cd-9bf5-25dd721abbb3-12-scaled.jpg' },
+
+            // СЛОЙКА
+            { id: 's1', cat: 'Слойка', name: 'Круассан фисташковый', desc: 'Бархатный фисташковый крем, белый шоколад.', weight: '110г', price: 750, img: 'https://laposte.ru/wp-content/uploads/2026/09/654713e9-48ca-47a9-a507-9250bdcc0442.png' },
+            { id: 's2', cat: 'Слойка', name: 'Круассан миндальный', desc: 'Классический круассан с миндальным кремом.', weight: '110г', price: 520, img: 'https://laposte.ru/wp-content/uploads/2026/08/67898232-5b5b-438d-b51d-635b41811e0b.jpg' },
+            { id: 's3', cat: 'Слойка', name: 'Круассан земляничный с лаймом', desc: 'Яркое сочетание земляники и лаймовой свежести.', weight: '120г', price: 680, img: 'https://laposte.ru/wp-content/uploads/2026/09/0ec56e96-66ed-4fc3-a26a-e187fc688e0c.png' },
+            { id: 's4', cat: 'Слойка', name: 'Круассан классический', desc: 'Традиционный хрустящий французский круассан на масле.', weight: '70г', price: 260, img: 'https://laposte.ru/wp-content/uploads/2026/02/0f3a0b50-3131-4936-8e8d-ec4d4fbbcbfd-16.jpg' },
+            { id: 's5', cat: 'Слойка', name: 'Царь круассан классический', desc: 'Большой классический круассан для настоящих ценителей.', weight: '180г', price: 590, img: 'https://laposte.ru/wp-content/uploads/2026/02/dsc_3610-scaled.jpg' },
+            { id: 's6', cat: 'Слойка', name: 'Слойка «Крем-брюле»', desc: 'Слоеная выпечка с нежным кремом со вкусом крем-брюле.', weight: '110г', price: 480, img: 'https://laposte.ru/wp-content/uploads/2026/03/b0e33ad9-901f-4b47-a542-5e2149c45e3d-1.jpg' },
+            { id: 's7', cat: 'Слойка', name: 'Слойка «Тартифлет с яблоком и фундуком»', desc: 'Ароматная слойка со свежим яблоком и обжаренным фундуком.', weight: '125г', price: 510, img: 'https://laposte.ru/wp-content/uploads/2026/05/9bf6ee68-3647-431d-9bec-7e0570bff449-1-scaled.jpg' },
+            { id: 's8', cat: 'Слойка', name: 'Слойка Улитка', desc: 'Сочная слоеная улитка с изюмом и заварным кремом.', weight: '100г', price: 390, img: 'https://laposte.ru/wp-content/uploads/2026/02/4d2688fe-b312-4aa7-a7b9-ff64778ecb8a-13.png' },
+            { id: 's9', cat: 'Слойка', name: 'Крендель слоеный «Брецель Барбары»', desc: 'Авторский слоеный брецель с сахарной корочкой.', weight: '90г', price: 340, img: 'https://laposte.ru/wp-content/uploads/2026/02/1caaa4fb-e04b-453a-8e43-5f63895a2d29-1.png' },
+
+            // ВЫПЕЧКА И ДЕСЕРТЫ
+            { id: 'd1', cat: 'Выпечка и десерты', name: 'Шведская булочка', desc: 'Традиционная пряная выпечка с корицей и кардамоном.', weight: '90г', price: 310, img: 'https://laposte.ru/wp-content/uploads/2026/02/e9f0d1ec-e94c-4391-a304-c190ecd09a5e-16-scaled.jpg' },
+            { id: 'd2', cat: 'Выпечка и десерты', name: 'Плюшка Московская', desc: 'Классическая пышная сдобная плюшка с сахаром.', weight: '110г', price: 220, img: 'https://laposte.ru/wp-content/uploads/2026/02/e0c6a5bd-e42d-46e4-80f1-8970b37e8740-scaled.jpg' },
+            { id: 'd3', cat: 'Выпечка и десерты', name: 'Плюшка Маковая', desc: 'Ароматная плюшка с щедрой маковой начинкой.', weight: '120г', price: 260, img: 'https://laposte.ru/wp-content/uploads/2026/02/9702-scaled.jpg' },
+            { id: 'd4', cat: 'Выпечка и десерты', name: 'Тарталетка с ягодами', desc: 'Песочная тарталетка со свежими сезонными ягодами.', weight: '120г', price: 620, img: 'https://laposte.ru/wp-content/uploads/2026/06/1b93c306-bb5a-4c1d-9019-d76ba33ac897.png' },
+            { id: 'd5', cat: 'Выпечка и десерты', name: 'Тарталетка с инжиром и дор блю', desc: 'Изысканное сочетание сладкого инжира и сыра с плесенью.', weight: '115г', price: 690, img: 'https://laposte.ru/wp-content/uploads/2026/08/f69560be-480f-4f6c-953a-5666e1703a39.png' },
+            { id: 'd6', cat: 'Выпечка и десерты', name: 'Тарталетка с земляникой', desc: 'Нежная тарталетка с ароматной лесной земляникой.', weight: '110г', price: 740, img: 'https://laposte.ru/wp-content/uploads/2026/06/4l1a3133-kopiya-scaled.jpg' },
+            { id: 'd7', cat: 'Выпечка и десерты', name: 'Чизкейк с ягодами', desc: 'Классический кремовый чизкейк со свежими ягодами.', weight: '150г', price: 580, img: 'https://laposte.ru/wp-content/uploads/2026/02/83985d7e-9a23-4f7c-86c4-d103e5aa3731-10-scaled.jpg' },
+            { id: 'd8', cat: 'Выпечка и десерты', name: 'Чизкейк «Карима Буржи»', desc: 'Фирменный чизкейк по рецепту известного шеф-кондитера.', weight: '140г', price: 650, img: 'https://laposte.ru/wp-content/uploads/2026/02/a552a7a2-a8f5-405d-b549-de9e5fb1da1f-10-scaled.jpg' },
+            { id: 'd9', cat: 'Выпечка и десерты', name: 'Кекс «Мохито»', desc: 'Освежающий бисквитный кекс с нотами лайма и мяты.', weight: '100г', price: 380, img: 'https://laposte.ru/wp-content/uploads/2026/02/fb168c7e-bce4-4df9-a78e-59f75f2d0345-10.png' },
+            { id: 'd10', cat: 'Выпечка и десерты', name: 'Кекс «ТиКейк»', desc: 'Нежный чайно-пряный кекс к горячим напиткам.', weight: '100г', price: 380, img: 'https://laposte.ru/wp-content/uploads/2026/04/337a8f2f-9297-413b-91e2-e823d500dcd8-1-scaled.jpg' },
+            { id: 'd11', cat: 'Выпечка и десерты', name: 'Сочник с творогом', desc: 'Традиционный сочник с начинкой из свежего творога.', weight: '110г', price: 240, img: 'https://laposte.ru/wp-content/uploads/2026/02/5fd27a8d-4117-4831-9e81-5b0ef3fc111b-1-scaled.jpg' },
+            { id: 'd12', cat: 'Выпечка и десерты', name: 'Бисквит «Мадлен» лимон', desc: 'Знаменитое французское печенье с лимонной цедрой.', weight: '40г', price: 160, img: 'https://laposte.ru/wp-content/uploads/2026/02/9a645908-af96-4cc6-a2f1-f4699fff1949-10.png' },
+            { id: 'd13', cat: 'Выпечка и десерты', name: 'Бисквит «Мадлен» малина-эстрагон', desc: 'Бисквит «Мадлен» с тонким сочетанием малины и тархуна.', weight: '40г', price: 180, img: 'https://laposte.ru/wp-content/uploads/2026/02/8c5250e8-e4aa-408b-8957-bf13016daac5-10.jpg' },
+            { id: 'd14', cat: 'Выпечка и десерты', name: 'Десерт Канле', desc: 'Традиционный десерт Бордо с карамельной корочкой.', weight: '55г', price: 210, img: 'https://laposte.ru/wp-content/uploads/2026/02/f93f3b41-6176-4bd3-9e8f-4ede829360cc-10.png' }
+        ];
+
+        let cart = {};
+        let currentCategory = 'Хлеб';
+
+        function init() {
+            renderCategories();
+            renderProducts();
+        }
+
+        function renderCategories() {
+            const cats = ['Хлеб', 'Гастрономия', 'Слойка', 'Выпечка и десерты'];
+            const container = document.getElementById('categoryContainer');
+            container.innerHTML = cats.map(c => 
+                `<button class="cat-btn ${c === currentCategory ? 'active' : ''}" onclick="filterCat('${c}')">${c}</button>`
+            ).join('');
+        }
+
+        function filterCat(cat) {
+            currentCategory = cat;
+            renderCategories();
+            renderProducts();
+        }
+
+        function renderProducts() {
+            const container = document.getElementById('productsContainer');
+            const filtered = products.filter(p => p.cat === currentCategory);
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: #888; padding: 40px 0;">Категория пуста</div>`;
+                return;
+            }
+
+            container.innerHTML = filtered.map(p => {
+                const count = cart[p.id] || 0;
+                return `
+                    <div class="product-card">
+                        <div>
+                            <div class="img-wrapper">
+                                <img src="${p.img}" class="product-img" alt="${p.name}" loading="lazy" onerror="this.onerror=null;this.style.display='none';">
+                            </div>
+                            <div class="product-title">${p.name}</div>
+                            <div class="product-desc">${p.desc}</div>
+                        </div>
+                        <div class="product-footer">
+                            <div class="price-group">
+                                <span class="product-price">${p.price} ₽</span>
+                                <span class="product-weight">${p.weight}</span>
+                            </div>
+                            ${count === 0 ? 
+                                `<button class="add-btn" onclick="changeCount('${p.id}', 1)">+</button>` : 
+                                `<div class="counter">
+                                    <button onclick="changeCount('${p.id}', -1)">-</button>
+                                    <span>${count}</span>
+                                    <button onclick="changeCount('${p.id}', 1)">+</button>
+                                </div>`
+                            }
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function changeCount(id, delta) {
+            cart[id] = (cart[id] || 0) + delta;
+            if (cart[id] <= 0) delete cart[id];
+            renderProducts();
+            updateTotal();
+        }
+
+        function updateTotal() {
+            let totalSum = 0;
+            let totalCount = 0;
+
+            for (let id in cart) {
+                let p = products.find(prod => prod.id === id);
+                if (p) {
+                    totalSum += p.price * cart[id];
+                    totalCount += cart[id];
+                }
+            }
+
+            const btn = document.getElementById('orderBtn');
+            if (totalCount > 0) {
+                btn.innerText = `Оформить заказ (${totalSum} ₽)`;
+                btn.disabled = false;
+            } else {
+                btn.innerText = `Выберите товары (0 ₽)`;
+                btn.disabled = true;
+            }
+        }
+
+        function sendOrder() {
+            let items = [];
+            let total = 0;
+
+            for (let id in cart) {
+                let p = products.find(prod => prod.id === id);
+                if (p) {
+                    items.push({
+                        name: p.name,
+                        count: cart[id],
+                        price: p.price
+                    });
+                    total += p.price * cart[id];
+                }
+            }
+
+            tg.sendData(JSON.stringify({ items: items, total: total }));
+        }
+
+        init();
+    </script>
+</body>
+</html>
